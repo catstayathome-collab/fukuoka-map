@@ -300,6 +300,21 @@ function buildHeroSummary(items) {
   return "";
 }
 
+
+function normalizeCompareText(value) {
+  return String(value || "")
+    .replace(/\s+/g, "")
+    .trim()
+    .toLowerCase();
+}
+
+function getDisplayAddress(item) {
+  const title = item.place_name || item.original_item || "";
+  const address = item.address || "";
+  if (!address) return "";
+  return normalizeCompareText(title) === normalizeCompareText(address) ? "" : address;
+}
+
 function syncSelectedMapsButton(item) {
   if (item?.google_maps_url) {
     selectedMapsBtn.href = item.google_maps_url;
@@ -327,9 +342,20 @@ function renderList(items) {
     node.querySelector(".card-order").textContent = item.order;
     node.querySelector(".card-time").textContent = formatTimeRange(item);
     node.querySelector(".card-category").textContent = item.category || "未分類";
-    node.querySelector(".card-title").textContent = item.place_name || item.original_item || "未命名景點";
-    node.querySelector(".card-address").textContent = item.address || "尚未填寫地址";
-    node.querySelector(".card-note").textContent = item.note || "尚未填寫備註";
+    const title = item.place_name || item.original_item || "未命名景點";
+    const displayAddress = getDisplayAddress(item);
+    const addressEl = node.querySelector(".card-address");
+    const noteEl = node.querySelector(".card-note");
+
+    node.querySelector(".card-title").textContent = title;
+    if (displayAddress) {
+      addressEl.textContent = displayAddress;
+      addressEl.hidden = false;
+    } else {
+      addressEl.textContent = "";
+      addressEl.hidden = true;
+    }
+    noteEl.textContent = item.note || "尚未填寫備註";
 
     const mapState = node.querySelector(".card-map-state");
     mapState.textContent = item.hasCoordinates ? "已定位" : "待補座標";
@@ -428,12 +454,14 @@ function renderMap(items, options = {}) {
 
 function buildPopupHtml(item) {
   const title = escapeHtml(item.place_name || item.original_item || `景點 ${item.order}`);
+  const address = getDisplayAddress(item);
+  const addressHtml = address ? `<br><span>${escapeHtml(address)}</span>` : "";
   const note = escapeHtml(item.note || "尚未填寫備註");
   const time = escapeHtml(formatTimeRange(item));
   const maps = item.google_maps_url
     ? `<div style="margin-top:10px;"><a href="${item.google_maps_url}" target="_blank" rel="noreferrer noopener">在 Google Maps 開啟</a></div>`
     : "";
-  return `<div><strong>${title}</strong><br><span>${time}</span><br><span>${note}</span>${maps}</div>`;
+  return `<div><strong>${title}</strong><br><span>${time}</span>${addressHtml}<br><span>${note}</span>${maps}</div>`;
 }
 
 function createNumberedIcon(order, color) {
