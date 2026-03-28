@@ -176,6 +176,7 @@ function normalizeItems(items) {
       google_maps_url: item.google_maps_url || buildGoogleMapsUrl(item),
       status: item.status || "",
       original_item: item.original_item || "",
+      image_url: item.image_url || "",
       hasCoordinates: Number.isFinite(lat) && Number.isFinite(lng),
     };
   }).sort((a, b) => {
@@ -367,6 +368,8 @@ function renderList(items) {
     const displayAddress = getDisplayAddress(item);
     const addressEl = node.querySelector(".card-address");
     const noteEl = node.querySelector(".card-note");
+    const mediaEl = node.querySelector(".card-media");
+    const imageEl = node.querySelector(".card-image");
 
     node.querySelector(".card-title").textContent = title;
     if (displayAddress) {
@@ -377,6 +380,27 @@ function renderList(items) {
       addressEl.hidden = true;
     }
     noteEl.textContent = item.note || "尚未填寫備註";
+
+    const imageUrl = String(item.image_url || "").trim();
+    if (imageUrl) {
+      node.classList.add("has-image");
+      node.classList.remove("no-image");
+      mediaEl.hidden = false;
+      imageEl.src = imageUrl;
+      imageEl.alt = `${title} 照片`;
+      imageEl.onerror = () => {
+        mediaEl.hidden = true;
+        node.classList.remove("has-image");
+        node.classList.add("no-image");
+        imageEl.removeAttribute("src");
+      };
+    } else {
+      mediaEl.hidden = true;
+      node.classList.remove("has-image");
+      node.classList.add("no-image");
+      imageEl.removeAttribute("src");
+      imageEl.alt = "";
+    }
 
     const mapState = node.querySelector(".card-map-state");
     mapState.textContent = item.hasCoordinates ? "已定位" : "待補座標";
