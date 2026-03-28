@@ -21,17 +21,10 @@ const dayTabsEl = document.getElementById("day-tabs");
 const itineraryListEl = document.getElementById("itinerary-list");
 const currentDayTitleEl = document.getElementById("current-day-title");
 const currentDayMetaEl = document.getElementById("current-day-meta");
-const currentDayDateEl = document.getElementById("current-day-date");
-const currentDayMappedEl = document.getElementById("current-day-mapped");
-const currentDayRouteEl = document.getElementById("current-day-route");
 const dayCountBadgeEl = document.getElementById("day-count-badge");
-const selectedPreviewEl = document.getElementById("selected-preview");
 const heroDateEl = document.getElementById("hero-date");
 const heroTitleEl = document.getElementById("hero-title");
 const heroSummaryEl = document.getElementById("hero-summary");
-const heroStopCountEl = document.getElementById("hero-stop-count");
-const heroMappedCountEl = document.getElementById("hero-mapped-count");
-const heroSelectedOrderEl = document.getElementById("hero-selected-order");
 const selectedMapsBtn = document.getElementById("selected-maps-btn");
 const fitDayBtn = document.getElementById("fit-day-btn");
 const mapEmptyStateEl = document.getElementById("map-empty-state");
@@ -284,22 +277,15 @@ function renderCurrentDay(options = {}) {
   document.documentElement.style.setProperty("--day-color", color);
   document.documentElement.style.setProperty("--day-color-soft", hexToRgba(color, 0.14));
 
-  currentDayTitleEl.textContent = `Day ${extractDayNumber(state.currentDay)} 行程`;
-  currentDayMetaEl.textContent = buildDaySubtitle(items);
-  currentDayDateEl.textContent = items[0]?.date || "—";
-  currentDayMappedEl.textContent = String(items.filter((item) => item.hasCoordinates).length);
-  currentDayRouteEl.textContent = items.filter((item) => item.hasCoordinates).length >= 2 ? "已連線" : "單點模式";
-  dayCountBadgeEl.textContent = `${items.length} 筆`;
+  if (currentDayTitleEl) currentDayTitleEl.textContent = `Day ${extractDayNumber(state.currentDay)} 行程`;
+  if (currentDayMetaEl) currentDayMetaEl.textContent = "";
+  if (dayCountBadgeEl) dayCountBadgeEl.textContent = `${items.length} 筆`;
 
   if (heroDateEl) heroDateEl.textContent = items[0]?.date || "";
   if (heroTitleEl) heroTitleEl.textContent = `Day ${extractDayNumber(state.currentDay)}`;
   if (heroSummaryEl) heroSummaryEl.textContent = "";
-  if (heroStopCountEl) heroStopCountEl.textContent = String(items.length);
-  if (heroMappedCountEl) heroMappedCountEl.textContent = String(items.filter((item) => item.hasCoordinates).length);
-  if (heroSelectedOrderEl) heroSelectedOrderEl.textContent = selected ? `#${selected.order}` : "—";
 
   syncSelectedMapsButton(selected);
-  renderSelectedPreview(selected);
   renderList(items);
   renderMap(items, { fitBounds: !!options.fitBounds });
 }
@@ -321,49 +307,6 @@ function syncSelectedMapsButton(item) {
   } else {
     selectedMapsBtn.href = "#";
     selectedMapsBtn.classList.add("is-disabled");
-  }
-}
-
-function renderSelectedPreview(item) {
-  if (!item) {
-    selectedPreviewEl.innerHTML = `
-      <div class="preview-top"><div class="preview-pill-group"><span class="preview-pill">尚未選取</span></div></div>
-      <p class="preview-note">點選下方卡片或地圖 marker 後，這裡會顯示你目前聚焦的行程。</p>
-    `;
-    return;
-  }
-
-  const title = escapeHtml(item.place_name || item.original_item || "未命名景點");
-  const time = escapeHtml(formatTimeRange(item));
-  const address = escapeHtml(item.address || "尚未填寫地址");
-  const note = escapeHtml(item.note || "尚未填寫備註");
-  const mapsButton = item.google_maps_url
-    ? `<a class="preview-btn" href="${item.google_maps_url}" target="_blank" rel="noreferrer noopener">Google Maps 開啟</a>`
-    : `<span class="preview-pill">暫無外開連結</span>`;
-  const routeButton = item.hasCoordinates
-    ? `<button class="preview-btn secondary" type="button" data-focus-selected>聚焦地圖</button>`
-    : `<span class="preview-pill">尚未定位</span>`;
-
-  selectedPreviewEl.innerHTML = `
-    <div class="preview-top">
-      <div class="preview-pill-group">
-        <span class="preview-pill">#${item.order}</span>
-      </div>
-    </div>
-    <h2 class="preview-title">${title}</h2>
-    <p class="preview-meta">${time} ・ ${address}</p>
-    <p class="preview-note">${note}</p>
-    <div class="preview-actions">
-      ${mapsButton}
-      ${routeButton}
-    </div>
-  `;
-
-  const focusBtn = selectedPreviewEl.querySelector("[data-focus-selected]");
-  if (focusBtn) {
-    focusBtn.addEventListener("click", () => {
-      focusItem(item.id, { openPopup: true, scrollCard: true, flyTo: true });
-    });
   }
 }
 
@@ -442,8 +385,6 @@ function renderMap(items, options = {}) {
     return;
   }
 
-  if (mapEmptyStateEl) mapEmptyStateEl.classList.add("is-hidden");
-
   if (mappable.length >= 2) {
     const routePoints = mappable.map((item) => [item.lat, item.lng]);
     L.polyline(routePoints, {
@@ -517,9 +458,7 @@ function focusItem(itemId, options = {}) {
   if (!item) return;
 
   state.selectedId = item.id;
-  if (heroSelectedOrderEl) heroSelectedOrderEl.textContent = `#${item.order}`;
   syncSelectedMapsButton(item);
-  renderSelectedPreview(item);
   renderList(getCurrentItems());
   syncMarkerActiveState();
 
@@ -588,12 +527,10 @@ function hexToRgba(hex, alpha) {
 
 function renderNoData() {
   itineraryListEl.innerHTML = `<div class="empty-state-card">找不到行程資料。</div>`;
-  selectedPreviewEl.innerHTML = `<div class="empty-state-card">目前沒有可載入的資料。</div>`;
 }
 
 function renderLoadError(error) {
   itineraryListEl.innerHTML = `<div class="empty-state-card">無法讀取 itinerary 資料：${escapeHtml(error.message || "Load failed")}</div>`;
-  selectedPreviewEl.innerHTML = `<div class="empty-state-card">請確認 Apps Script 網頁應用程式與 data 目錄設定是否正確。</div>`;
 }
 
 function setupBottomSheet() {
