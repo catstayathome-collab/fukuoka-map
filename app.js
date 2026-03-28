@@ -338,6 +338,7 @@ function getDisplayAddress(item) {
 }
 
 function syncSelectedMapsButton(item) {
+  if (!selectedMapsBtn) return;
   if (item?.google_maps_url) {
     selectedMapsBtn.href = item.google_maps_url;
     selectedMapsBtn.classList.remove("is-disabled");
