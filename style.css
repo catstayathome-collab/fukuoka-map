@@ -167,8 +167,13 @@ a { color: inherit; }
 
 .itinerary-card {
   position: relative;
-  display: grid; grid-template-columns: 84px 1fr; gap: 14px; align-items: start;
-  border-radius: 26px; padding: 16px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 84px;
+  grid-template-areas: "body media";
+  gap: 14px;
+  align-items: start;
+  border-radius: 26px;
+  padding: 16px 16px 16px 64px;
   background: var(--glass);
   border: 1px solid var(--glass-border);
   backdrop-filter: blur(18px); -webkit-backdrop-filter: blur(18px);
@@ -184,6 +189,7 @@ a { color: inherit; }
 .card-media {
   grid-area: media;
   justify-self: end;
+  align-self: start;
   width: 84px;
   height: 84px;
   border-radius: 22px;
@@ -213,6 +219,9 @@ a { color: inherit; }
   grid-template-columns: 1fr;
   grid-template-areas: "body";
   padding-left: 64px;
+}
+.itinerary-card.has-image .card-body {
+  padding-right: 2px;
 }
 .itinerary-card.no-image .card-body {
   min-height: 40px;
@@ -274,7 +283,12 @@ a { color: inherit; }
 @media (max-width: 420px) {
   .section-head h2 { font-size: 1.42rem; }
   .hero-copy h1 { font-size: clamp(1.4rem, 6vw, 1.7rem); }
-  .itinerary-card { grid-template-columns: minmax(0, 1fr) 76px; gap: 12px; padding: 14px; }
+  .itinerary-card {
+    grid-template-columns: minmax(0, 1fr) 76px;
+    grid-template-areas: "body media";
+    gap: 12px;
+    padding: 14px 14px 14px 58px;
+  }
   .card-media { width: 76px; height: 76px; border-radius: 20px; }
   .floating-actions { right: 12px; }
   .floating-btn { padding-inline: 0.85rem; }
