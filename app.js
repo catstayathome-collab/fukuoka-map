@@ -244,7 +244,8 @@ function getDefaultSelectedId(dayKey) {
 
 function renderDayTabs() {
   dayTabsEl.innerHTML = "";
-  const shouldFillTwo = state.orderedDays.length <= 2;
+  const count = state.orderedDays.length;
+  dayTabsEl.classList.toggle("is-scroll", count > 3);
 
   state.orderedDays.forEach((dayKey) => {
     const items = state.groupedItems[dayKey] || [];
@@ -252,10 +253,17 @@ function renderDayTabs() {
     const button = document.createElement("button");
     button.type = "button";
     button.className = `day-tab ${dayKey === state.currentDay ? "active" : ""}`;
-    if (shouldFillTwo) {
-      button.style.flexBasis = "calc((100% - 10px) / 2)";
+
+    if (count <= 3) {
+      const gap = 8;
+      button.style.flex = `0 0 calc((100% - ${(count - 1) * gap}px) / ${count})`;
       button.style.maxWidth = "none";
+      button.style.minWidth = "0";
+    } else {
+      button.style.flex = "0 0 132px";
+      button.style.maxWidth = "132px";
     }
+
     button.innerHTML = `
       <span class="day-tab-label">Day ${extractDayNumber(dayKey)}</span>
       <span class="day-tab-meta">
@@ -274,6 +282,9 @@ function renderDayTabs() {
     });
     dayTabsEl.appendChild(button);
   });
+
+  const activeBtn = dayTabsEl.querySelector(".day-tab.active");
+  activeBtn?.scrollIntoView({ block: "nearest", inline: "nearest", behavior: "smooth" });
 }
 
 function renderCurrentDay(options = {}) {
