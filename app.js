@@ -244,15 +244,25 @@ function getDefaultSelectedId(dayKey) {
 
 function renderDayTabs() {
   dayTabsEl.innerHTML = "";
+  const shouldFillTwo = state.orderedDays.length <= 2;
+
   state.orderedDays.forEach((dayKey) => {
     const items = state.groupedItems[dayKey] || [];
     const mappedCount = items.filter((item) => item.hasCoordinates).length;
     const button = document.createElement("button");
     button.type = "button";
     button.className = `day-tab ${dayKey === state.currentDay ? "active" : ""}`;
+    if (shouldFillTwo) {
+      button.style.flexBasis = "calc((100% - 10px) / 2)";
+      button.style.maxWidth = "none";
+    }
     button.innerHTML = `
       <span class="day-tab-label">Day ${extractDayNumber(dayKey)}</span>
-      <span class="day-tab-meta">${items[0]?.date || ""} ・ ${mappedCount}/${items.length}</span>
+      <span class="day-tab-meta">
+        <span class="day-tab-date">${items[0]?.date || ""}</span>
+        <span class="day-tab-divider">・</span>
+        <span class="day-tab-ratio">${mappedCount}/${items.length}</span>
+      </span>
     `;
     button.addEventListener("click", () => {
       if (state.currentDay === dayKey) return;
