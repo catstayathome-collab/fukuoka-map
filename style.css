@@ -788,3 +788,126 @@ a { color: inherit; }
 @media (max-width: 420px) {
   .hero-stats-single { max-width: none; }
 }
+
+/* --- neutral glass refinement --- */
+.hero-summary,
+#map-empty-state,
+.overview-grid,
+.section-subtitle {
+  display: none !important;
+}
+
+.hero-stats {
+  grid-template-columns: 1fr;
+  max-width: 320px;
+}
+
+.hero-stat:nth-child(n+2) {
+  display: none;
+}
+
+.bottom-sheet {
+  background: rgba(248, 250, 252, 0.48);
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  backdrop-filter: blur(26px) saturate(120%);
+  -webkit-backdrop-filter: blur(26px) saturate(120%);
+  box-shadow: 0 -18px 42px rgba(15, 23, 42, 0.14);
+}
+
+.day-tabs-wrap {
+  background: linear-gradient(180deg, rgba(248, 250, 252, 0.48) 0%, rgba(248, 250, 252, 0.42) 72%, rgba(248, 250, 252, 0) 100%);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+}
+
+.selected-preview,
+.day-tab,
+.overview-card,
+.itinerary-card,
+.empty-state-card {
+  background: rgba(255, 255, 255, 0.18) !important;
+  border: 1px solid rgba(255, 255, 255, 0.28) !important;
+  backdrop-filter: blur(24px) saturate(125%);
+  -webkit-backdrop-filter: blur(24px) saturate(125%);
+  box-shadow: 0 12px 30px rgba(15, 23, 42, 0.10), inset 0 1px 0 rgba(255,255,255,0.16) !important;
+}
+
+.selected-preview {
+  color: #15304f;
+}
+
+.preview-title,
+.preview-meta,
+.preview-note,
+.card-title,
+.card-note,
+.card-address,
+.card-time,
+.card-map-state,
+.card-category,
+.overview-card strong,
+.day-tab,
+.day-tab-meta,
+.day-tab-label,
+.count-pill,
+.mini-action,
+.preview-btn {
+  color: #18314f !important;
+}
+
+.preview-pill,
+.card-category,
+.card-map-state,
+.count-pill,
+.mini-action,
+.preview-btn,
+.preview-btn.secondary {
+  background: rgba(255, 255, 255, 0.16) !important;
+  border: 1px solid rgba(255, 255, 255, 0.24) !important;
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  box-shadow: none !important;
+}
+
+.preview-btn:hover,
+.preview-btn.secondary:hover,
+.mini-action:hover {
+  background: rgba(255, 255, 255, 0.24) !important;
+}
+
+.card-order {
+  background: rgba(255, 255, 255, 0.22) !important;
+  color: #18314f !important;
+  border: 1px solid rgba(255, 255, 255, 0.30);
+  box-shadow: none !important;
+}
+
+.day-tab.active {
+  background: rgba(255, 255, 255, 0.22) !important;
+  color: #18314f !important;
+  border-color: rgba(255, 255, 255, 0.34) !important;
+}
+
+.day-tab:hover,
+.itinerary-card:hover,
+.itinerary-card:focus-visible {
+  transform: translateY(-1px);
+  box-shadow: 0 14px 34px rgba(15, 23, 42, 0.12), inset 0 1px 0 rgba(255,255,255,0.18) !important;
+}
+
+.itinerary-card.active {
+  background: rgba(255, 255, 255, 0.24) !important;
+  border-color: rgba(255, 255, 255, 0.34) !important;
+}
+
+.list-section {
+  padding-top: 4px;
+}
+
+.section-head h2 {
+  color: #10253f;
+}
+
+.sheet-content {
+  background: transparent;
+}
