@@ -291,12 +291,12 @@ function renderCurrentDay(options = {}) {
   currentDayRouteEl.textContent = items.filter((item) => item.hasCoordinates).length >= 2 ? "已連線" : "單點模式";
   dayCountBadgeEl.textContent = `${items.length} 筆`;
 
-  heroDateEl.textContent = items[0]?.date || "";
-  heroTitleEl.textContent = `Day ${extractDayNumber(state.currentDay)}`;
-  heroSummaryEl.textContent = buildHeroSummary(items);
-  heroStopCountEl.textContent = String(items.length);
-  heroMappedCountEl.textContent = String(items.filter((item) => item.hasCoordinates).length);
-  heroSelectedOrderEl.textContent = selected ? `#${selected.order}` : "—";
+  if (heroDateEl) heroDateEl.textContent = items[0]?.date || "";
+  if (heroTitleEl) heroTitleEl.textContent = `Day ${extractDayNumber(state.currentDay)}`;
+  if (heroSummaryEl) heroSummaryEl.textContent = "";
+  if (heroStopCountEl) heroStopCountEl.textContent = String(items.length);
+  if (heroMappedCountEl) heroMappedCountEl.textContent = String(items.filter((item) => item.hasCoordinates).length);
+  if (heroSelectedOrderEl) heroSelectedOrderEl.textContent = selected ? `#${selected.order}` : "—";
 
   syncSelectedMapsButton(selected);
   renderSelectedPreview(selected);
@@ -311,12 +311,7 @@ function buildDaySubtitle(items) {
 }
 
 function buildHeroSummary(items) {
-  const mapped = items.filter((item) => item.hasCoordinates).length;
-  const withTime = items.filter((item) => item.start_time).length;
-  if (mapped >= 2) {
-    return `已模擬影片感功能：Day 切換、編號 marker、平滑跳點、底部抽屜與當日動線。${withTime ? ` 本日共有 ${withTime} 個時間節點。` : ""}`;
-  }
-  return "這一天仍可點卡片同步地圖與外開 Google Maps；補更多明確景點後，動線會更完整。";
+  return "";
 }
 
 function syncSelectedMapsButton(item) {
@@ -339,8 +334,6 @@ function renderSelectedPreview(item) {
   }
 
   const title = escapeHtml(item.place_name || item.original_item || "未命名景點");
-  const category = escapeHtml(item.category || "未分類");
-  const status = escapeHtml(item.status || "已整理");
   const time = escapeHtml(formatTimeRange(item));
   const address = escapeHtml(item.address || "尚未填寫地址");
   const note = escapeHtml(item.note || "尚未填寫備註");
@@ -355,8 +348,6 @@ function renderSelectedPreview(item) {
     <div class="preview-top">
       <div class="preview-pill-group">
         <span class="preview-pill">#${item.order}</span>
-        <span class="preview-pill">${category}</span>
-        <span class="preview-pill">${status}</span>
       </div>
     </div>
     <h2 class="preview-title">${title}</h2>
@@ -446,12 +437,12 @@ function renderMap(items, options = {}) {
   const dayColor = getDayColor(state.currentDay);
 
   if (!mappable.length) {
-    mapEmptyStateEl.classList.remove("is-hidden");
+    if (mapEmptyStateEl) mapEmptyStateEl.classList.add("is-hidden");
     state.map.setView(defaultCenter, 12);
     return;
   }
 
-  mapEmptyStateEl.classList.add("is-hidden");
+  if (mapEmptyStateEl) mapEmptyStateEl.classList.add("is-hidden");
 
   if (mappable.length >= 2) {
     const routePoints = mappable.map((item) => [item.lat, item.lng]);
@@ -526,7 +517,7 @@ function focusItem(itemId, options = {}) {
   if (!item) return;
 
   state.selectedId = item.id;
-  heroSelectedOrderEl.textContent = `#${item.order}`;
+  if (heroSelectedOrderEl) heroSelectedOrderEl.textContent = `#${item.order}`;
   syncSelectedMapsButton(item);
   renderSelectedPreview(item);
   renderList(getCurrentItems());
