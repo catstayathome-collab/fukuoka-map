@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>福岡行程地圖｜免費版影片感 Demo</title>
+  <meta name="description" content="免費版福岡行程地圖：Day 切換、列表同步、編號 marker、路線連線、底部抽屜與手機版介面。" />
+  <link rel="preconnect" href="https://unpkg.com" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+    integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
+  <link rel="stylesheet" href="./style.css" />
+</head>
+<body>
+  <div class="device-shell">
+    <main class="app">
+      <section class="map-stage">
+        <div id="map" aria-label="福岡行程地圖"></div>
+        <div class="map-shade"></div>
+
+        <header class="hero-overlay">
+          <div class="hero-topline">
+            <span class="hero-badge">Free version</span>
+            <span class="hero-badge muted">Video-feel demo</span>
+          </div>
+
+          <div class="hero-copy">
+            <p id="hero-date" class="hero-date"></p>
+            <h1 id="hero-title">福岡行程地圖</h1>
+            <p id="hero-summary" class="hero-summary">點選下方卡片後，地圖會同步聚焦並顯示當日動線。</p>
+          </div>
+
+          <div class="hero-stats">
+            <div class="hero-stat">
+              <span class="hero-stat-label">當天行程</span>
+              <strong id="hero-stop-count">0</strong>
+            </div>
+            <div class="hero-stat">
+              <span class="hero-stat-label">已定位</span>
+              <strong id="hero-mapped-count">0</strong>
+            </div>
+            <div class="hero-stat">
+              <span class="hero-stat-label">目前選取</span>
+              <strong id="hero-selected-order">—</strong>
+            </div>
+          </div>
+        </header>
+
+        <div class="floating-actions">
+          <button id="fit-day-btn" class="floating-btn" type="button">顯示當天全部</button>
+          <a id="selected-maps-btn" class="floating-btn secondary is-disabled" href="#" target="_blank" rel="noreferrer noopener">Google Maps</a>
+        </div>
+
+        <div id="map-empty-state" class="map-empty-state is-hidden">
+          <strong>這一天暫時沒有可定位的景點</strong>
+          <p>目前仍可瀏覽卡片與外開 Google Maps；補上座標後，marker 與動線會自動出現。</p>
+        </div>
+      </section>
+
+      <section id="bottom-sheet" class="bottom-sheet" aria-label="當日行程抽屜">
+        <div id="sheet-handle-area" class="sheet-handle-area" aria-hidden="true">
+          <span class="sheet-handle"></span>
+        </div>
+
+        <div class="sheet-content">
+          <section id="selected-preview" class="selected-preview"></section>
+
+          <nav class="day-tabs-wrap" aria-label="行程天數切換">
+            <div id="day-tabs" class="day-tabs"></div>
+          </nav>
+
+          <section class="overview-grid">
+            <article class="overview-card">
+              <span class="overview-label">日期</span>
+              <strong id="current-day-date">—</strong>
+            </article>
+            <article class="overview-card">
+              <span class="overview-label">有座標景點</span>
+              <strong id="current-day-mapped">0</strong>
+            </article>
+            <article class="overview-card">
+              <span class="overview-label">路線模式</span>
+              <strong id="current-day-route">Polyline</strong>
+            </article>
+          </section>
+
+          <section class="list-section">
+            <div class="section-head">
+              <div>
+                <h2 id="current-day-title">Day 1 行程</h2>
+                <p id="current-day-meta" class="section-subtitle"></p>
+              </div>
+              <span id="day-count-badge" class="count-pill">0 筆</span>
+            </div>
+
+            <div id="itinerary-list" class="itinerary-list"></div>
+          </section>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <template id="itinerary-card-template">
+    <article class="itinerary-card" role="button" tabindex="0">
+      <div class="card-order"></div>
+      <div class="card-body">
+        <div class="card-line">
+          <span class="card-time"></span>
+          <span class="card-category"></span>
+          <span class="card-map-state"></span>
+        </div>
+        <h3 class="card-title"></h3>
+        <p class="card-address"></p>
+        <p class="card-note"></p>
+        <div class="card-actions">
+          <button type="button" class="mini-action focus-btn">定位</button>
+          <a class="mini-action maps-btn" target="_blank" rel="noreferrer noopener">Google Maps</a>
+        </div>
+      </div>
+    </article>
+  </template>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+    integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+  <script src="./data/itinerary-data.js"></script>
+  <script src="./app.js"></script>
+</body>
+</html>
