@@ -115,34 +115,38 @@ a { color: inherit; }
 
 .floating-actions {
   position: absolute;
+  top: calc(var(--safe-top) + 88px);
   right: 16px;
-  bottom: calc(var(--sheet-height) + 20px);
+  bottom: auto;
   z-index: 3;
   display: flex;
   flex-direction: column;
-  gap: 10px;
-  transition: bottom 0.25s ease;
-  width: min(260px, calc(100% - 32px));
+  align-items: flex-end;
+  gap: 8px;
+  transition: top 0.25s ease;
+  width: auto;
 }
+
 .floating-btn {
-  width: 100%;
+  width: auto;
   border: 1px solid rgba(255,255,255,0.18);
   border-radius: 999px;
-  min-height: 52px;
-  padding: 0.82rem 1.1rem;
+  min-height: 34px;
+  padding: 0.42rem 0.82rem;
   color: #fff;
   background: rgba(17, 24, 39, 0.78);
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
-  box-shadow: 0 12px 28px rgba(0,0,0,0.18);
+  box-shadow: 0 10px 22px rgba(0,0,0,0.16);
   text-decoration: none;
   cursor: pointer;
-  font-weight: 800;
+  font-weight: 700;
+  font-size: 0.72rem;
+  line-height: 1;
   text-align: center;
+  white-space: nowrap;
 }
-.floating-btn-primary {
-  background: rgba(17, 24, 39, 0.82);
-}
+
 .floating-btn.secondary { background: rgba(255,255,255,0.88); color: #111827; }
 .floating-btn.is-disabled { pointer-events: none; opacity: 0.45; }
 .is-hidden { display: none !important; }
@@ -167,13 +171,8 @@ a { color: inherit; }
 
 .itinerary-card {
   position: relative;
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 84px;
-  grid-template-areas: "body media";
-  gap: 14px;
-  align-items: start;
-  border-radius: 26px;
-  padding: 16px 16px 16px 64px;
+  display: grid; grid-template-columns: 84px 1fr; gap: 14px; align-items: start;
+  border-radius: 26px; padding: 16px;
   background: var(--glass);
   border: 1px solid var(--glass-border);
   backdrop-filter: blur(18px); -webkit-backdrop-filter: blur(18px);
@@ -189,7 +188,6 @@ a { color: inherit; }
 .card-media {
   grid-area: media;
   justify-self: end;
-  align-self: start;
   width: 84px;
   height: 84px;
   border-radius: 22px;
@@ -219,9 +217,6 @@ a { color: inherit; }
   grid-template-columns: 1fr;
   grid-template-areas: "body";
   padding-left: 64px;
-}
-.itinerary-card.has-image .card-body {
-  padding-right: 2px;
 }
 .itinerary-card.no-image .card-body {
   min-height: 40px;
@@ -278,20 +273,35 @@ a { color: inherit; }
 .leaflet-control-attribution { font-size: 10px; }
 
 @media (min-width: 680px) {
-  .device-shell { min-height: calc(100dvh - 32px); margin: 16px auto; border-radius: 28px; overflow: hidden; }
+  html, body {
+    width: 100%;
+    overflow: hidden;
+  }
+
+  .device-shell {
+    width: 100vw;
+    max-width: none;
+    min-height: 100dvh;
+    margin: 0;
+    border-radius: 0;
+    overflow: hidden;
+    box-shadow: none;
+  }
 }
 @media (max-width: 420px) {
   .section-head h2 { font-size: 1.42rem; }
   .hero-copy h1 { font-size: clamp(1.4rem, 6vw, 1.7rem); }
-  .itinerary-card {
-    grid-template-columns: minmax(0, 1fr) 76px;
-    grid-template-areas: "body media";
-    gap: 12px;
-    padding: 14px 14px 14px 58px;
-  }
+  .itinerary-card { grid-template-columns: minmax(0, 1fr) 76px; gap: 12px; padding: 14px; }
   .card-media { width: 76px; height: 76px; border-radius: 20px; }
-  .floating-actions { right: 12px; }
-  .floating-btn { padding-inline: 0.85rem; }
+  .floating-actions {
+    top: calc(var(--safe-top) + 82px);
+    right: 12px;
+  }
+  .floating-btn {
+    min-height: 32px;
+    padding: 0.38rem 0.72rem;
+    font-size: 0.68rem;
+  }
   .day-tabs-top .day-tab { flex-basis: 148px; min-height: 84px; padding-inline: 14px; }
   .day-tab-label { font-size: 0.94rem; }
   .day-tab-meta { font-size: 0.7rem; gap: 0.28rem; }
