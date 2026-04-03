@@ -1,4 +1,5 @@
 const SHEET_API_URL = "https://script.google.com/macros/s/AKfycbylDb2h8oC9VTpbDpbW3Bf47k1etUCxBRzY6Js42p16Pmjf-C7v1KSjOH6T0Kes5WK-/exec";
+const SITE_TITLE = "福岡行程地圖";
 const DAY_COLORS = ["#3b82f6", "#f97316", "#10b981", "#8b5cf6", "#ec4899", "#14b8a6", "#f59e0b", "#ef4444"];
 
 const state = {
@@ -11,26 +12,34 @@ const state = {
   markersLayer: null,
   routeLayer: null,
   markerMap: new Map(),
-  sheetVh: 58,
-  sourceLabel: "",
+  sheetVh: 54,
+  isEditMode: false,
 };
 
-const defaultCenter = [33.5902, 130.4017];
+const defaultCenter = [33.582260572862914, 130.435100252942];
 const mapEl = document.getElementById("map");
 const dayTabsEl = document.getElementById("day-tabs");
 const itineraryListEl = document.getElementById("itinerary-list");
 const currentDayTitleEl = document.getElementById("current-day-title");
 const currentDayMetaEl = document.getElementById("current-day-meta");
-const dayCountBadgeEl = document.getElementById("day-count-badge");
 const heroDateEl = document.getElementById("hero-date");
 const heroTitleEl = document.getElementById("hero-title");
 const heroSummaryEl = document.getElementById("hero-summary");
-const selectedMapsBtn = document.getElementById("selected-maps-btn");
 const fitDayBtn = document.getElementById("fit-day-btn");
 const mapEmptyStateEl = document.getElementById("map-empty-state");
 const sheetHandleArea = document.getElementById("sheet-handle-area");
-const sourcePillEl = document.getElementById("source-pill");
 const cardTemplate = document.getElementById("itinerary-card-template");
+const openAddModalBtn = document.getElementById("open-add-modal-btn");
+const toggleEditModeBtn = document.getElementById("toggle-edit-mode-btn");
+const itemModalEl = document.getElementById("item-modal");
+const itemFormEl = document.getElementById("item-form");
+const itemFormMessageEl = document.getElementById("item-form-message");
+const closeItemModalBtn = document.getElementById("close-item-modal-btn");
+const cancelItemBtn = document.getElementById("cancel-item-btn");
+const submitItemBtn = document.getElementById("submit-item-btn");
+const formKickerEl = document.getElementById("form-kicker");
+const formTitleEl = document.getElementById("form-title");
+const autofillPlaceBtn = document.getElementById("autofill-place-btn");
 
 bootstrap();
 
@@ -40,27 +49,9 @@ async function bootstrap() {
   setupBottomSheet();
 
   try {
-    const { items, sourceLabel } = await loadItineraryData();
-    state.sourceLabel = sourceLabel;
-    state.allItems = normalizeItems(items);
-    state.groupedItems = groupItemsByDay(state.allItems);
-    state.orderedDays = sortDays(Object.keys(state.groupedItems));
-
-    renderSourcePill();
-
-    if (!state.orderedDays.length) {
-      renderNoData();
-      return;
-    }
-
-    state.currentDay = state.orderedDays[0];
-    state.selectedId = getDefaultSelectedId(state.currentDay);
-    renderDayTabs();
-    renderCurrentDay({ fitBounds: true });
+    await reloadFromRemote();
   } catch (error) {
     console.error(error);
-    state.sourceLabel = "載入失敗";
-    renderSourcePill(true);
     renderLoadError(error);
   }
 }
@@ -84,43 +75,31 @@ function initMap() {
 function bindEvents() {
   fitDayBtn?.addEventListener("click", () => fitCurrentDayBounds({ animate: true }));
   window.addEventListener("resize", () => state.map?.invalidateSize());
+
+  openAddModalBtn?.addEventListener("click", () => openItemModal("add"));
+  toggleEditModeBtn?.addEventListener("click", toggleEditMode);
+  closeItemModalBtn?.addEventListener("click", closeItemModal);
+  cancelItemBtn?.addEventListener("click", closeItemModal);
+  itemFormEl?.addEventListener("submit", handleItemSubmit);
+  autofillPlaceBtn?.addEventListener("click", handleAutofillPlace);
+  itemModalEl?.addEventListener("click", (event) => {
+    if (event.target === itemModalEl) closeItemModal();
+  });
 }
 
-async function loadItineraryData() {
-  const errors = [];
-
-  try {
-    const remoteItems = await loadRemoteSheetData();
-    return { items: remoteItems, sourceLabel: "Google Sheets（即時）" };
-  } catch (error) {
-    errors.push(`Google Sheets 讀取失敗：${error.message || error}`);
-  }
-
-  try {
-    const response = await fetch("./data/itinerary.json");
-    if (!response.ok) throw new Error(`本地資料載入失敗：${response.status}`);
-    const localItems = await response.json();
-    return { items: localItems, sourceLabel: "本地 itinerary.json（備援）" };
-  } catch (error) {
-    errors.push(`本地 JSON 讀取失敗：${error.message || error}`);
-  }
-
-  if (Array.isArray(window.ITINERARY_DATA)) {
-    return { items: window.ITINERARY_DATA, sourceLabel: "本地 itinerary-data.js（備援）" };
-  }
-
-  throw new Error(errors.join("｜"));
-}
-
-function loadRemoteSheetData() {
+function requestJsonp(params = {}, { timeout = 12000, includeEmpty = false } = {}) {
   return new Promise((resolve, reject) => {
     const callbackName = `__sheetCallback_${Date.now()}_${Math.random().toString(36).slice(2)}`;
     const timeoutId = setTimeout(() => {
       cleanup();
       reject(new Error("Google Sheets 連線逾時"));
-    }, 12000);
+    }, timeout);
 
     const url = new URL(SHEET_API_URL);
+    Object.entries(params).forEach(([key, value]) => {
+      if (!includeEmpty && (value === undefined || value === null || value === "")) return;
+      url.searchParams.set(key, value == null ? "" : String(value));
+    });
     url.searchParams.set("prefix", callbackName);
 
     const script = document.createElement("script");
@@ -139,27 +118,47 @@ function loadRemoteSheetData() {
 
     window[callbackName] = (payload) => {
       cleanup();
-      if (!payload || payload.ok !== true || !Array.isArray(payload.items)) {
-        reject(new Error("Google Sheets 回傳格式不正確"));
-        return;
-      }
-      resolve(payload.items);
+      resolve(payload);
     };
 
     document.body.appendChild(script);
   });
 }
 
-function renderSourcePill(isError = false) {
-  if (!sourcePillEl) return;
-  const label = escapeHtml(state.sourceLabel || "未知");
-  sourcePillEl.innerHTML = isError ? `資料來源：<strong>${label}</strong>` : `資料來源：<strong>${label}</strong>`;
+async function loadRemoteSheetData() {
+  const payload = await requestJsonp({}, { timeout: 12000 });
+  if (!payload || payload.ok !== true || !Array.isArray(payload.items)) {
+    throw new Error(payload?.message || "Google Sheets 回傳格式不正確");
+  }
+  return payload.items;
+}
+
+async function reloadFromRemote(preferredDay = null, preferredId = null, fitBounds = false) {
+  const items = await loadRemoteSheetData();
+  state.allItems = normalizeItems(items);
+  state.groupedItems = groupItemsByDay(state.allItems);
+  state.orderedDays = sortDays(Object.keys(state.groupedItems));
+
+  if (!state.orderedDays.length) {
+    renderNoData();
+    return;
+  }
+
+  const nextDay = preferredDay && state.groupedItems[preferredDay] ? preferredDay : state.currentDay;
+  state.currentDay = nextDay && state.groupedItems[nextDay] ? nextDay : state.orderedDays[0];
+
+  const itemsForDay = getCurrentItems();
+  state.selectedId = preferredId && itemsForDay.some((item) => item.id === preferredId)
+    ? preferredId
+    : getDefaultSelectedId(state.currentDay);
+
+  renderDayTabs();
+  renderCurrentDay({ fitBounds });
 }
 
 function normalizeItems(items) {
   return items.map((item, index) => {
-    const lat = parseNumber(item.lat);
-    const lng = parseNumber(item.lng);
+    const parsed = parseCoords(item.coords, item.lat, item.lng);
     return {
       id: item.id || `${item.day || "day0"}-${item.order || index + 1}`,
       date: item.date || "",
@@ -167,17 +166,17 @@ function normalizeItems(items) {
       order: Number(item.order) || index + 1,
       place_name: item.place_name || "",
       address: item.address || "",
-      lat,
-      lng,
+      coords: item.coords || formatCoords(parsed.lat, parsed.lng),
+      lat: parsed.lat,
+      lng: parsed.lng,
       start_time: item.start_time || "",
       end_time: item.end_time || "",
       note: item.note || "",
       category: item.category || inferCategory(item),
-      google_maps_url: item.google_maps_url || buildGoogleMapsUrl(item),
-      status: item.status || "",
-      original_item: item.original_item || "",
+      google_maps_url: item.google_maps_url || buildGoogleMapsUrl(item, parsed),
       image_url: item.image_url || "",
-      hasCoordinates: Number.isFinite(lat) && Number.isFinite(lng),
+      status: item.status || "",
+      hasCoordinates: Number.isFinite(parsed.lat) && Number.isFinite(parsed.lng),
     };
   }).sort((a, b) => {
     if (a.day !== b.day) return extractDayNumber(a.day) - extractDayNumber(b.day);
@@ -185,32 +184,35 @@ function normalizeItems(items) {
   });
 }
 
+function parseCoords(coords, latRaw, lngRaw) {
+  if (typeof coords === "string" && coords.includes(",")) {
+    const [latStr, lngStr] = coords.split(",").map((v) => v.trim());
+    return { lat: parseFloat(latStr), lng: parseFloat(lngStr) };
+  }
+  return { lat: parseFloat(latRaw), lng: parseFloat(lngRaw) };
+}
+
 function inferCategory(item) {
-  const text = `${item.place_name || ""} ${item.note || ""} ${item.original_item || ""}`;
-  if (/機場|航班|車站|移動|交通/.test(text)) return "交通";
-  if (/飯店|hotel|Richmond/i.test(text)) return "住宿";
-  if (/午餐|晚餐|咖啡|燒肉|梅枝餅|牛舌/.test(text)) return "餐飲";
-  if (/美術館/.test(text)) return "美術館";
-  if (/神社|太宰府/.test(text)) return "神社";
-  if (/由布院/.test(text)) return "溫泉";
-  if (/長崎|海之中道|海洋館|公園/.test(text)) return "郊遊";
-  if (/三越|大丸|DAISO|運河城|天神/.test(text)) return "購物";
-  if (/自由日/.test(text)) return "自由活動";
+  const text = `${item.place_name || ""} ${item.note || ""}`;
+  if (/機場|航班|車站|交通|單軌/.test(text)) return "交通";
+  if (/飯店|ホテル|hotel|リッチモンド/i.test(text)) return "住宿";
+  if (/咖啡|燒肉|麵|うどん|壽司|餐|吃|冰淇淋/.test(text)) return "餐飲";
+  if (/海洋|水族館|公園|植物園/.test(text)) return "景點";
   return item.status || "待確認";
 }
 
-function buildGoogleMapsUrl(item) {
-  if (Number.isFinite(parseNumber(item.lat)) && Number.isFinite(parseNumber(item.lng))) {
-    return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${item.lat},${item.lng}`)}`;
+function buildGoogleMapsUrl(item, parsed) {
+  if (item.google_maps_url) return item.google_maps_url;
+  if (Number.isFinite(parsed.lat) && Number.isFinite(parsed.lng)) {
+    return `https://www.google.com/maps/search/?api=1&query=${parsed.lat},${parsed.lng}`;
   }
-  const q = item.place_name || item.address || item.original_item || "";
+  const q = [item.place_name, item.address].filter(Boolean).join(" ").trim();
   return q ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(q)}` : "";
 }
 
 function groupItemsByDay(items) {
   return items.reduce((acc, item) => {
-    if (!acc[item.day]) acc[item.day] = [];
-    acc[item.day].push(item);
+    (acc[item.day] ||= []).push(item);
     return acc;
   }, {});
 }
@@ -219,14 +221,9 @@ function sortDays(days) {
   return [...days].sort((a, b) => extractDayNumber(a) - extractDayNumber(b));
 }
 
-function extractDayNumber(dayKey) {
-  const match = String(dayKey).match(/day(\d+)/i);
+function extractDayNumber(day) {
+  const match = String(day || "").match(/day(\d+)/i);
   return match ? Number(match[1]) : Number.MAX_SAFE_INTEGER;
-}
-
-function getDayColor(dayKey) {
-  const index = Math.max(0, extractDayNumber(dayKey) - 1);
-  return DAY_COLORS[index % DAY_COLORS.length];
 }
 
 function getCurrentItems() {
@@ -237,10 +234,15 @@ function getSelectedItem() {
   return getCurrentItems().find((item) => item.id === state.selectedId) || null;
 }
 
-function getDefaultSelectedId(dayKey) {
-  const items = state.groupedItems[dayKey] || [];
-  const firstMappable = items.find((item) => item.hasCoordinates);
-  return (firstMappable || items[0] || {}).id || null;
+function getDefaultSelectedId(day) {
+  const items = state.groupedItems[day] || [];
+  const firstMapped = items.find((item) => item.hasCoordinates);
+  return firstMapped?.id || items[0]?.id || null;
+}
+
+function getDayColor(dayKey) {
+  const index = Math.max(0, extractDayNumber(dayKey) - 1) % DAY_COLORS.length;
+  return DAY_COLORS[index];
 }
 
 function renderDayTabs() {
@@ -268,11 +270,12 @@ function renderDayTabs() {
     button.innerHTML = `
       <span class="day-tab-label">Day ${extractDayNumber(dayKey)}</span>
       <span class="day-tab-meta">
-        <span class="day-tab-date">${items[0]?.date || ""}</span>
+        <span class="day-tab-date">${escapeHtml(items[0]?.date || "")}</span>
         <span class="day-tab-divider">・</span>
         <span class="day-tab-ratio">${mappedCount}/${items.length}</span>
       </span>
     `;
+
     button.addEventListener("click", () => {
       if (state.currentDay === dayKey) return;
       state.currentDay = dayKey;
@@ -281,6 +284,7 @@ function renderDayTabs() {
       renderCurrentDay({ fitBounds: true });
       closeAnyOpenPopup();
     });
+
     dayTabsEl.appendChild(button);
   });
 
@@ -288,7 +292,7 @@ function renderDayTabs() {
   activeBtn?.scrollIntoView({ block: "nearest", inline: "nearest", behavior: "smooth" });
 }
 
-function renderCurrentDay(options = {}) {
+function renderCurrentDay({ fitBounds = false } = {}) {
   const items = getCurrentItems();
   if (!items.length) return;
 
@@ -301,51 +305,24 @@ function renderCurrentDay(options = {}) {
 
   if (currentDayTitleEl) currentDayTitleEl.textContent = `Day ${extractDayNumber(state.currentDay)} 行程`;
   if (currentDayMetaEl) currentDayMetaEl.textContent = "";
-  if (dayCountBadgeEl) dayCountBadgeEl.textContent = `${items.length} 筆`;
-
   if (heroDateEl) heroDateEl.textContent = items[0]?.date || "";
   if (heroTitleEl) heroTitleEl.textContent = `Day ${extractDayNumber(state.currentDay)}`;
   if (heroSummaryEl) heroSummaryEl.textContent = "";
 
-  syncSelectedMapsButton(selected);
+  syncEditModeUi();
   renderList(items);
-  renderMap(items, { fitBounds: !!options.fitBounds });
+  renderMap(items, { fitBounds });
 }
-
-function buildDaySubtitle(items) {
-  const mapped = items.filter((item) => item.hasCoordinates).length;
-  const categories = [...new Set(items.map((item) => item.category).filter(Boolean))].slice(0, 3).join("、");
-  return `${mapped}/${items.length} 個景點可定位${categories ? ` ・ ${categories}` : ""}`;
-}
-
-function buildHeroSummary(items) {
-  return "";
-}
-
 
 function normalizeCompareText(value) {
-  return String(value || "")
-    .replace(/\s+/g, "")
-    .trim()
-    .toLowerCase();
+  return String(value || "").replace(/\s+/g, "").trim().toLowerCase();
 }
 
 function getDisplayAddress(item) {
-  const title = item.place_name || item.original_item || "";
+  const title = item.place_name || "";
   const address = item.address || "";
   if (!address) return "";
   return normalizeCompareText(title) === normalizeCompareText(address) ? "" : address;
-}
-
-function syncSelectedMapsButton(item) {
-  if (!selectedMapsBtn) return;
-  if (item?.google_maps_url) {
-    selectedMapsBtn.href = item.google_maps_url;
-    selectedMapsBtn.classList.remove("is-disabled");
-  } else {
-    selectedMapsBtn.href = "#";
-    selectedMapsBtn.classList.add("is-disabled");
-  }
 }
 
 function renderList(items) {
@@ -362,23 +339,33 @@ function renderList(items) {
     const node = cardTemplate.content.firstElementChild.cloneNode(true);
     node.dataset.id = item.id;
 
-    node.querySelector(".card-order").textContent = item.order;
-    node.querySelector(".card-time").textContent = formatTimeRange(item);
-    node.querySelector(".card-category").textContent = item.category || "未分類";
-    const title = item.place_name || item.original_item || "未命名景點";
-    const displayAddress = getDisplayAddress(item);
+    const orderEl = node.querySelector(".card-order");
+    const timeEl = node.querySelector(".card-time");
+    const categoryEl = node.querySelector(".card-category");
+    const mapStateEl = node.querySelector(".card-map-state");
+    const titleEl = node.querySelector(".card-title");
     const addressEl = node.querySelector(".card-address");
     const noteEl = node.querySelector(".card-note");
+    const focusBtn = node.querySelector(".focus-btn");
+    const mapsBtn = node.querySelector(".maps-btn");
     const mediaEl = node.querySelector(".card-media");
     const imageEl = node.querySelector(".card-image");
 
-    node.querySelector(".card-title").textContent = title;
+    orderEl.textContent = item.order;
+    timeEl.textContent = formatTimeRange(item.start_time, item.end_time) || "時間未定";
+    categoryEl.textContent = formatCategory(item.category);
+    mapStateEl.textContent = item.hasCoordinates ? "已定位" : "待補座標";
+    if (!item.hasCoordinates) mapStateEl.classList.add("muted");
+
+    const title = item.place_name || "未命名地點";
+    const displayAddress = getDisplayAddress(item);
+    titleEl.textContent = title;
     if (displayAddress) {
       addressEl.textContent = displayAddress;
       addressEl.hidden = false;
     } else {
-      addressEl.textContent = "";
       addressEl.hidden = true;
+      addressEl.textContent = "";
     }
     noteEl.textContent = item.note || "尚未填寫備註";
 
@@ -388,7 +375,7 @@ function renderList(items) {
       node.classList.remove("no-image");
       mediaEl.hidden = false;
       imageEl.src = imageUrl;
-      imageEl.alt = `${title} 照片`;
+      imageEl.alt = `${title} 圖片`;
       imageEl.onerror = () => {
         mediaEl.hidden = true;
         node.classList.remove("has-image");
@@ -403,35 +390,57 @@ function renderList(items) {
       imageEl.alt = "";
     }
 
-    const mapState = node.querySelector(".card-map-state");
-    mapState.textContent = item.hasCoordinates ? "已定位" : "待補座標";
-    if (!item.hasCoordinates) mapState.classList.add("muted");
-
-    const focusBtn = node.querySelector(".focus-btn");
-    const mapsBtn = node.querySelector(".maps-btn");
-
-    if (item.hasCoordinates) {
+    if (state.isEditMode) {
+      focusBtn.textContent = "編輯";
+      focusBtn.classList.add("editing");
       focusBtn.addEventListener("click", (event) => {
         event.stopPropagation();
-        focusItem(item.id, { openPopup: true, scrollCard: false, flyTo: true });
+        openItemModal("edit", item);
+      });
+
+      mapsBtn.textContent = "刪除";
+      mapsBtn.classList.add("danger");
+      mapsBtn.removeAttribute("href");
+      mapsBtn.setAttribute("role", "button");
+      mapsBtn.addEventListener("click", async (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        await handleDelete(item);
       });
     } else {
-      focusBtn.disabled = true;
-      focusBtn.textContent = "未定位";
+      if (item.hasCoordinates) {
+        focusBtn.textContent = "定位";
+        focusBtn.classList.remove("editing");
+        focusBtn.disabled = false;
+        focusBtn.addEventListener("click", (event) => {
+          event.stopPropagation();
+          focusItem(item.id, { openPopup: true, scrollCard: false, flyTo: true });
+        });
+      } else {
+        focusBtn.textContent = "未定位";
+        focusBtn.disabled = true;
+      }
+
+      mapsBtn.textContent = item.google_maps_url ? "Google Maps" : "無連結";
+      mapsBtn.classList.remove("danger");
+      if (item.google_maps_url) {
+        mapsBtn.href = item.google_maps_url;
+        mapsBtn.removeAttribute("aria-disabled");
+      } else {
+        mapsBtn.removeAttribute("href");
+        mapsBtn.setAttribute("aria-disabled", "true");
+      }
     }
 
-    if (item.google_maps_url) {
-      mapsBtn.href = item.google_maps_url;
-    } else {
-      mapsBtn.removeAttribute("href");
-      mapsBtn.setAttribute("aria-disabled", "true");
-      mapsBtn.textContent = "無連結";
-    }
+    node.addEventListener("click", () => {
+      if (state.isEditMode) return;
+      focusItem(item.id, { openPopup: true, scrollCard: false, flyTo: true });
+    });
 
-    node.addEventListener("click", () => focusItem(item.id, { openPopup: true, scrollCard: false, flyTo: true }));
     node.addEventListener("keydown", (event) => {
       if (event.key === "Enter" || event.key === " ") {
         event.preventDefault();
+        if (state.isEditMode) return;
         focusItem(item.id, { openPopup: true, scrollCard: false, flyTo: true });
       }
     });
@@ -443,7 +452,7 @@ function renderList(items) {
   itineraryListEl.appendChild(fragment);
 }
 
-function renderMap(items, options = {}) {
+function renderMap(items, { fitBounds = false } = {}) {
   state.markersLayer.clearLayers();
   state.routeLayer.clearLayers();
   state.markerMap.clear();
@@ -453,7 +462,7 @@ function renderMap(items, options = {}) {
 
   if (!mappable.length) {
     if (mapEmptyStateEl) mapEmptyStateEl.classList.add("is-hidden");
-    state.map.setView(defaultCenter, 12);
+    state.map.setView(defaultCenter, 10);
     return;
   }
 
@@ -481,7 +490,7 @@ function renderMap(items, options = {}) {
     const marker = L.marker([item.lat, item.lng], {
       icon: createNumberedIcon(item.order, dayColor),
       keyboard: true,
-      title: item.place_name || item.original_item || `景點 ${item.order}`,
+      title: item.place_name || `景點 ${item.order}`,
     });
 
     marker.bindPopup(buildPopupHtml(item), { closeButton: false, autoPanPadding: [24, 160] });
@@ -495,15 +504,15 @@ function renderMap(items, options = {}) {
   });
 
   syncMarkerActiveState();
-  if (options.fitBounds) fitCurrentDayBounds({ animate: false });
+  if (fitBounds) fitCurrentDayBounds({ animate: false });
 }
 
 function buildPopupHtml(item) {
-  const title = escapeHtml(item.place_name || item.original_item || `景點 ${item.order}`);
+  const title = escapeHtml(item.place_name || `景點 ${item.order}`);
   const address = getDisplayAddress(item);
   const addressHtml = address ? `<br><span>${escapeHtml(address)}</span>` : "";
   const note = escapeHtml(item.note || "尚未填寫備註");
-  const time = escapeHtml(formatTimeRange(item));
+  const time = escapeHtml(formatTimeRange(item.start_time, item.end_time) || "時間未定");
   const maps = item.google_maps_url
     ? `<div style="margin-top:10px;"><a href="${item.google_maps_url}" target="_blank" rel="noreferrer noopener">在 Google Maps 開啟</a></div>`
     : "";
@@ -532,7 +541,6 @@ function focusItem(itemId, options = {}) {
   if (!item) return;
 
   state.selectedId = item.id;
-  syncSelectedMapsButton(item);
   renderList(getCurrentItems());
   syncMarkerActiveState();
 
@@ -557,7 +565,7 @@ function focusItem(itemId, options = {}) {
 function fitCurrentDayBounds({ animate = true } = {}) {
   const mappable = getCurrentItems().filter((item) => item.hasCoordinates);
   if (!mappable.length) {
-    state.map.flyTo(defaultCenter, 12, { animate });
+    state.map.flyTo(defaultCenter, 10, { animate });
     return;
   }
   if (mappable.length === 1) {
@@ -568,26 +576,280 @@ function fitCurrentDayBounds({ animate = true } = {}) {
   state.map.fitBounds(bounds.pad(0.2), { animate, paddingTopLeft: [20, 100], paddingBottomRight: [20, 170] });
 }
 
-function closeAnyOpenPopup() { state.map.closePopup(); }
-
-function formatTimeRange(item) {
-  if (item.start_time && item.end_time) return `${item.start_time}–${item.end_time}`;
-  return item.start_time || "時間未定";
+function closeAnyOpenPopup() {
+  state.map.closePopup();
 }
 
-function parseNumber(value) {
-  if (value === null || value === undefined || value === "") return NaN;
-  const n = Number(value);
-  return Number.isFinite(n) ? n : NaN;
+function syncEditModeUi() {
+  if (!toggleEditModeBtn) return;
+  toggleEditModeBtn.classList.toggle("is-active", state.isEditMode);
+  toggleEditModeBtn.setAttribute("aria-pressed", state.isEditMode ? "true" : "false");
+  toggleEditModeBtn.textContent = state.isEditMode ? "完成" : "編輯";
+}
+
+function toggleEditMode() {
+  state.isEditMode = !state.isEditMode;
+  syncEditModeUi();
+  renderList(getCurrentItems());
+}
+
+function openItemModal(mode = "add", item = null) {
+  if (!itemModalEl || !itemFormEl) return;
+  clearFormMessage();
+  itemFormEl.reset();
+  itemFormEl.elements.mode.value = mode;
+  itemFormEl.elements.id.value = item?.id || "";
+
+  if (mode === "edit" && item) {
+    formKickerEl.textContent = "編輯旅遊地點";
+    formTitleEl.textContent = "直接更新 Google Sheets";
+    submitItemBtn.textContent = "更新這筆行程";
+    fillFormWithItem(item);
+  } else {
+    formKickerEl.textContent = "新增旅遊地點";
+    formTitleEl.textContent = "直接寫入 Google Sheets";
+    submitItemBtn.textContent = "新增到 Google Sheets";
+    presetFormDefaults();
+  }
+
+  itemModalEl.showModal();
+}
+
+function fillFormWithItem(item) {
+  itemFormEl.elements.date.value = item.date || "";
+  itemFormEl.elements.day.value = item.day || "";
+  itemFormEl.elements.order.value = String(item.order || "");
+  itemFormEl.elements.place_name.value = item.place_name || "";
+  itemFormEl.elements.address.value = item.address || "";
+  itemFormEl.elements.coords.value = item.coords || formatCoords(item.lat, item.lng);
+  itemFormEl.elements.start_time.value = item.start_time || "";
+  itemFormEl.elements.end_time.value = item.end_time || "";
+  itemFormEl.elements.note.value = item.note || "";
+  itemFormEl.elements.category.value = item.category || "";
+  itemFormEl.elements.google_maps_url.value = item.google_maps_url || "";
+  itemFormEl.elements.image_url.value = item.image_url || "";
+  itemFormEl.elements.status.value = item.status || "planned";
+}
+
+function presetFormDefaults() {
+  const today = state.currentDay || "day1";
+  const items = getCurrentItems();
+  const nextOrder = (items.reduce((max, item) => Math.max(max, Number(item.order) || 0), 0) || 0) + 1;
+  const firstItemDate = items[0]?.date || formatDateInput(new Date());
+  itemFormEl.elements.day.value = today;
+  itemFormEl.elements.order.value = String(nextOrder);
+  itemFormEl.elements.date.value = firstItemDate;
+  itemFormEl.elements.status.value = "planned";
+}
+
+function closeItemModal() {
+  itemModalEl?.close();
+}
+
+
+async function handleAutofillPlace() {
+  if (!itemFormEl) return;
+  clearFormMessage();
+
+  const googleMapsUrl = String(itemFormEl.elements.google_maps_url?.value || "").trim();
+  const adminKey = String(itemFormEl.elements.admin_key?.value || "").trim();
+
+  if (!googleMapsUrl) {
+    showFormMessage("請先貼上 Google Maps 連結。", "error");
+    itemFormEl.elements.google_maps_url?.focus();
+    return;
+  }
+
+  if (!/^https?:\/\//i.test(googleMapsUrl)) {
+    showFormMessage("Google Maps 連結必須是 http 或 https 開頭。", "error");
+    itemFormEl.elements.google_maps_url?.focus();
+    return;
+  }
+
+  if (!adminKey) {
+    showFormMessage("請先輸入管理密碼，才能使用自動帶入。", "error");
+    itemFormEl.elements.admin_key?.focus();
+    return;
+  }
+
+  autofillPlaceBtn.disabled = true;
+  showFormMessage("正在解析 Google Maps 連結並帶入地點名稱與座標…", "info");
+
+  try {
+    const result = await requestJsonp(
+      {
+        action: "resolve_place",
+        admin_key: adminKey,
+        google_maps_url: googleMapsUrl,
+      },
+      { includeEmpty: true, timeout: 20000 }
+    );
+
+    if (!result || result.ok !== true) {
+      throw new Error(result?.message || "無法自動帶入資料");
+    }
+
+    if (result.place_name) {
+      itemFormEl.elements.place_name.value = result.place_name;
+    }
+    if (result.coords) {
+      itemFormEl.elements.coords.value = result.coords;
+    }
+    if (result.google_maps_url) {
+      itemFormEl.elements.google_maps_url.value = result.google_maps_url;
+    }
+
+    const parts = [];
+    if (result.place_name) parts.push(`名稱：${result.place_name}`);
+    if (result.coords) parts.push(`座標：${result.coords}`);
+    showFormMessage(parts.length ? `已自動帶入。${parts.join("｜")}` : "已自動帶入可辨識資料。", "success");
+  } catch (error) {
+    console.error(error);
+    showFormMessage(error.message || String(error), "error");
+  } finally {
+    autofillPlaceBtn.disabled = false;
+  }
+}
+
+async function handleItemSubmit(event) {
+  event.preventDefault();
+  clearFormMessage();
+
+  const formData = new FormData(itemFormEl);
+  const payload = Object.fromEntries(formData.entries());
+  const mode = payload.mode === "edit" ? "edit" : "add";
+  const validationError = validateFormPayload(payload, mode);
+  if (validationError) {
+    showFormMessage(validationError, "error");
+    return;
+  }
+
+  const action = mode === "edit" ? "update_item" : "add_item";
+  const params = {
+    action,
+    admin_key: payload.admin_key.trim(),
+    id: payload.id || "",
+    date: payload.date.trim(),
+    day: payload.day.trim(),
+    order: String(payload.order).trim(),
+    place_name: payload.place_name.trim(),
+    address: payload.address.trim(),
+    coords: payload.coords.trim(),
+    start_time: payload.start_time.trim(),
+    end_time: payload.end_time.trim(),
+    note: payload.note.trim(),
+    category: payload.category.trim(),
+    google_maps_url: payload.google_maps_url.trim(),
+    image_url: payload.image_url.trim(),
+    status: payload.status.trim() || "planned",
+  };
+
+  submitItemBtn.disabled = true;
+  showFormMessage(mode === "edit" ? "正在更新 Google Sheets…" : "正在新增到 Google Sheets…", "info");
+
+  try {
+    const result = await requestJsonp(params, { includeEmpty: true, timeout: 15000 });
+    if (!result || result.ok !== true) {
+      throw new Error(result?.message || "無法完成請求");
+    }
+
+    showFormMessage(result.message || (mode === "edit" ? "已更新。" : "已新增。"), "success");
+    const preferredDay = params.day;
+    const preferredId = mode === "edit" ? params.id : null;
+    await reloadFromRemote(preferredDay, preferredId, true);
+    setTimeout(() => {
+      submitItemBtn.disabled = false;
+      closeItemModal();
+    }, 300);
+  } catch (error) {
+    console.error(error);
+    showFormMessage(error.message || String(error), "error");
+    submitItemBtn.disabled = false;
+  }
+}
+
+async function handleDelete(item) {
+  const adminKey = window.prompt(`刪除「${item.place_name || "未命名地點"}」\n請輸入管理密碼：`);
+  if (adminKey === null) return;
+  if (!adminKey.trim()) {
+    window.alert("未輸入管理密碼。");
+    return;
+  }
+  if (!window.confirm(`確定要刪除「${item.place_name || "未命名地點"}」嗎？`)) return;
+
+  try {
+    const result = await requestJsonp(
+      { action: "delete_item", admin_key: adminKey.trim(), id: item.id },
+      { includeEmpty: true, timeout: 15000 }
+    );
+    if (!result || result.ok !== true) {
+      throw new Error(result?.message || "刪除失敗");
+    }
+    const fallbackId = getCurrentItems().find((x) => x.id !== item.id)?.id || null;
+    await reloadFromRemote(state.currentDay, fallbackId, true);
+  } catch (error) {
+    window.alert(error.message || String(error));
+  }
+}
+
+function validateFormPayload(payload, mode) {
+  if (!payload.date) return "請填日期。";
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(payload.date.trim())) return "日期格式需為 YYYY-MM-DD。";
+  if (!payload.day || !/^day\d+$/i.test(payload.day.trim())) return "day 欄請填像 day1、day2。";
+  if (!payload.order || !/^\d+$/.test(String(payload.order).trim())) return "順序必須是正整數。";
+  if (!payload.place_name || !payload.place_name.trim()) return "請填地點名稱。";
+  if (!payload.coords || !/^\s*-?\d+(\.\d+)?\s*,\s*-?\d+(\.\d+)?\s*$/.test(payload.coords)) return "coords 格式請填「緯度, 經度」。";
+  if (payload.start_time && !/^\d{2}:\d{2}$/.test(payload.start_time)) return "開始時間格式需為 HH:MM。";
+  if (payload.end_time && !/^\d{2}:\d{2}$/.test(payload.end_time)) return "結束時間格式需為 HH:MM。";
+  if (payload.google_maps_url && !/^https?:\/\//i.test(payload.google_maps_url.trim())) return "Google Maps 連結必須是 http 或 https 開頭。";
+  if (payload.image_url && !/^https?:\/\//i.test(payload.image_url.trim())) return "圖片網址必須是 http 或 https 開頭。";
+  if (!payload.admin_key || !payload.admin_key.trim()) return "請輸入管理密碼。";
+  if (mode === "edit" && !payload.id) return "找不到這筆資料的 id。";
+  return "";
+}
+
+function showFormMessage(message, type = "info") {
+  itemFormMessageEl.textContent = message;
+  itemFormMessageEl.className = `form-message ${type}`;
+  itemFormMessageEl.classList.remove("is-hidden");
+}
+
+function clearFormMessage() {
+  itemFormMessageEl.textContent = "";
+  itemFormMessageEl.className = "form-message is-hidden";
+}
+
+function formatTimeRange(start, end) {
+  const s = start?.trim();
+  const e = end?.trim();
+  if (s && e) return `${s}–${e}`;
+  return s || e || "";
+}
+
+function formatCategory(category) {
+  const value = String(category || "").trim();
+  return value || "待確認";
+}
+
+function formatCoords(lat, lng) {
+  if (Number.isFinite(lat) && Number.isFinite(lng)) return `${lat}, ${lng}`;
+  return "";
+}
+
+function formatDateInput(dateObj) {
+  const y = dateObj.getFullYear();
+  const m = String(dateObj.getMonth() + 1).padStart(2, "0");
+  const d = String(dateObj.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
 }
 
 function escapeHtml(value) {
-  return String(value)
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#039;");
+  return String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/\"/g, "&quot;")
+    .replace(/'/g, "&#39;");
 }
 
 function hexToRgba(hex, alpha) {
@@ -608,7 +870,7 @@ function renderLoadError(error) {
 }
 
 function setupBottomSheet() {
-  const snapPoints = [36, 58, 84];
+  const snapPoints = [34, 54, 82];
   let dragging = false;
   let startY = 0;
   let startVh = state.sheetVh;
@@ -619,15 +881,14 @@ function setupBottomSheet() {
     if (!dragging) return;
     const delta = startY - event.clientY;
     const vhDelta = (delta / window.innerHeight) * 100;
-    const next = clamp(startVh + vhDelta, 30, 88);
+    const next = clamp(startVh + vhDelta, 28, 88);
     applySheetHeight(next);
   };
 
   const onPointerUp = () => {
     if (!dragging) return;
     dragging = false;
-    const snapPointsLocal = snapPoints;
-    const nearest = snapPointsLocal.reduce((best, point) => Math.abs(point - state.sheetVh) < Math.abs(best - state.sheetVh) ? point : best, snapPointsLocal[0]);
+    const nearest = snapPoints.reduce((best, point) => Math.abs(point - state.sheetVh) < Math.abs(best - state.sheetVh) ? point : best, snapPoints[0]);
     applySheetHeight(nearest);
     document.body.style.userSelect = "";
     window.removeEventListener("pointermove", onPointerMove);
@@ -645,7 +906,7 @@ function setupBottomSheet() {
 }
 
 function applySheetHeight(vh) {
-  state.sheetVh = clamp(vh, 30, 88);
+  state.sheetVh = clamp(vh, 28, 88);
   document.documentElement.style.setProperty("--sheet-height", `${state.sheetVh}vh`);
   requestAnimationFrame(() => state.map?.invalidateSize());
 }
