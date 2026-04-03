@@ -3,68 +3,66 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-  <title>福岡行程地圖</title>
-  <meta name="description" content="福岡行程地圖：Day 切換、列表同步、編號 marker、路線連線、底部抽屜與手機版介面。" />
+  <title>沖繩行程地圖</title>
+  <meta name="description" content="沖繩旅遊行程地圖：Day 切換、列表同步、編號 marker、路線連線、底部抽屜與手機版介面。" />
   <link rel="preconnect" href="https://unpkg.com" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
     integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
   <link rel="stylesheet" href="./style.css" />
 </head>
 <body>
-  <div class="device-shell">
-    <main class="app">
-      <section class="map-stage">
-        <div id="map" aria-label="福岡行程地圖"></div>
-        <div class="map-shade"></div>
+  <main class="app-shell">
+    <section class="map-stage">
+      <div id="map" aria-label="沖繩行程地圖"></div>
+      <div class="map-shade"></div>
 
-        <header class="hero-overlay">
-          <div class="hero-topline hero-topline-stack">
-            <nav class="hero-day-tabs-wrap" aria-label="行程天數切換">
-              <div id="day-tabs" class="day-tabs day-tabs-top"></div>
-            </nav>
-          </div>
-
-          <div class="hero-copy">
-            <p id="hero-date" class="hero-date"></p>
-            <h1 id="hero-title">福岡行程地圖</h1>
-            <p id="hero-summary" class="hero-summary" hidden></p>
-          </div>
-        </header>
-
-        <div class="floating-actions">
-          <button id="fit-day-btn" class="floating-btn floating-btn-primary" type="button">顯示當天全部</button>
+      <header class="hero-overlay">
+        <div class="hero-topline hero-topline-stack">
+          <nav class="hero-day-tabs-wrap" aria-label="行程天數切換">
+            <div id="day-tabs" class="day-tabs day-tabs-top"></div>
+          </nav>
         </div>
 
-        <div id="map-empty-state" class="map-empty-state is-hidden"></div>
-      </section>
-
-      <section id="bottom-sheet" class="bottom-sheet" aria-label="當日行程抽屜">
-        <div id="sheet-handle-area" class="sheet-handle-area" aria-hidden="true">
-          <span class="sheet-handle"></span>
+        <div class="hero-copy">
+          <p id="hero-date" class="hero-date"></p>
+          <h1 id="hero-title">沖繩行程地圖</h1>
+          <p id="hero-summary" class="hero-summary" hidden></p>
         </div>
+      </header>
 
-        <div class="sheet-content">
-          <section class="list-section list-section-minimal">
-            <div class="section-head section-head-minimal">
-              <div>
-                <h2 id="current-day-title">Day 1 行程</h2>
-                <p id="current-day-meta" class="section-subtitle" hidden></p>
-              </div>
-              <span id="day-count-badge" class="count-pill" hidden>0 筆</span>
+      <div class="floating-actions">
+        <button id="fit-day-btn" class="floating-btn floating-btn-primary" type="button">顯示當天全部</button>
+      </div>
+
+      <div id="map-empty-state" class="map-empty-state is-hidden"></div>
+    </section>
+
+    <section id="bottom-sheet" class="bottom-sheet" aria-label="當日行程抽屜">
+      <div id="sheet-handle-area" class="sheet-handle-area" aria-hidden="true">
+        <span class="sheet-handle"></span>
+      </div>
+
+      <div class="sheet-content">
+        <section class="list-section list-section-minimal">
+          <div class="section-head section-head-minimal">
+            <div>
+              <h2 id="current-day-title">Day 1 行程</h2>
+              <p id="current-day-meta" class="section-subtitle" hidden></p>
             </div>
+            <div class="section-head-actions">
+              <button id="toggle-edit-mode-btn" class="control-pill control-pill-secondary" type="button" aria-pressed="false">編輯</button>
+              <button id="open-add-modal-btn" class="control-pill" type="button">新增行程</button>
+            </div>
+          </div>
 
-            <div id="itinerary-list" class="itinerary-list"></div>
-          </section>
-        </div>
-      </section>
-    </main>
-  </div>
+          <div id="itinerary-list" class="itinerary-list"></div>
+        </section>
+      </div>
+    </section>
+  </main>
 
   <template id="itinerary-card-template">
     <article class="itinerary-card" role="button" tabindex="0">
-      <div class="card-media" hidden>
-        <img class="card-image" alt="" loading="lazy" decoding="async" />
-      </div>
       <div class="card-order"></div>
       <div class="card-body">
         <div class="card-line">
@@ -80,12 +78,105 @@
           <a class="mini-action maps-btn" target="_blank" rel="noreferrer noopener">Google Maps</a>
         </div>
       </div>
+      <div class="card-media" hidden>
+        <img class="card-image" alt="" loading="lazy" decoding="async" />
+      </div>
     </article>
   </template>
 
+  <dialog id="item-modal" class="item-modal">
+    <form id="item-form" class="item-form" method="dialog" novalidate>
+      <input type="hidden" name="mode" value="add" />
+      <input type="hidden" name="id" value="" />
+
+      <div class="item-form-head">
+        <div>
+          <p id="form-kicker" class="item-form-kicker">新增旅遊地點</p>
+          <h3 id="form-title">直接寫入 Google Sheets</h3>
+        </div>
+        <button id="close-item-modal-btn" type="button" class="icon-btn" aria-label="關閉">✕</button>
+      </div>
+
+      <div id="item-form-message" class="form-message is-hidden"></div>
+
+      <div class="form-grid">
+        <label>
+          <span>日期 *</span>
+          <input name="date" type="date" required />
+        </label>
+        <label>
+          <span>day *</span>
+          <input name="day" type="text" placeholder="day1" required />
+        </label>
+        <label>
+          <span>順序 *</span>
+          <input name="order" type="number" min="1" step="1" placeholder="1" required />
+        </label>
+        <label>
+          <span>開始時間</span>
+          <input name="start_time" type="time" />
+        </label>
+        <label>
+          <span>結束時間</span>
+          <input name="end_time" type="time" />
+        </label>
+        <label>
+          <span>分類</span>
+          <input name="category" type="text" placeholder="🍜 / 景點 / 交通" />
+        </label>
+        <label class="span-2">
+          <span>地點名稱 *</span>
+          <input name="place_name" type="text" placeholder="例如：國際通" required />
+        </label>
+        <label class="span-2">
+          <span>地址</span>
+          <input name="address" type="text" placeholder="可留空，或填店家/景點地址" />
+        </label>
+        <label class="span-2">
+          <span>coords *</span>
+          <input name="coords" type="text" placeholder="26.2124, 127.6809" required />
+        </label>
+        <label class="span-2">
+          <span>Google Maps 連結</span>
+          <input name="google_maps_url" type="url" placeholder="https://maps.app.goo.gl/... 或 https://www.google.com/maps/..." />
+          <div class="smart-fill-row">
+            <button type="button" id="autofill-place-btn" class="secondary-btn smart-fill-btn">自動帶入名稱＋座標</button>
+            <span class="smart-fill-hint">需要先輸入管理密碼；只在你按下按鈕時才會查詢。</span>
+          </div>
+        </label>
+        <label class="span-2">
+          <span>圖片網址</span>
+          <input name="image_url" type="url" placeholder="https://...jpg / .png" />
+        </label>
+        <label class="span-2">
+          <span>備註</span>
+          <textarea name="note" rows="3" placeholder="例如：晚餐、展覽、需要預約、想拍照等"></textarea>
+        </label>
+        <label>
+          <span>狀態</span>
+          <input name="status" type="text" value="planned" />
+        </label>
+        <label>
+          <span>管理密碼 *</span>
+          <input name="admin_key" type="password" placeholder="你設定的 ADMIN_KEY" required />
+        </label>
+      </div>
+
+      <ul class="form-tips">
+        <li>目前可由 Google Maps 連結自動帶入 <code>place_name</code> 與 <code>coords</code>。</li>
+        <li>圖片網址仍需手動填寫；如自動帶入不精準，可再自行修改。</li>
+        <li>編輯與刪除同樣需要管理密碼。</li>
+      </ul>
+
+      <div class="item-form-actions">
+        <button type="button" id="cancel-item-btn" class="secondary-btn">取消</button>
+        <button type="submit" id="submit-item-btn" class="primary-btn">新增到 Google Sheets</button>
+      </div>
+    </form>
+  </dialog>
+
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
     integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
-  <script src="./data/itinerary-data.js"></script>
   <script src="./app.js"></script>
 </body>
 </html>
